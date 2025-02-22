@@ -50,7 +50,9 @@ def test_scaffold_project_inside_workspace_success(monkeypatch) -> None:
     monkeypatch.setenv("DAGSTER_GIT_REPO_DIR", str(dagster_git_repo_dir))
 
     with ProxyRunner.test() as runner, isolated_example_workspace(runner):
-        result = runner.invoke("scaffold", "project", "foo-bar", "--use-editable-dagster")
+        result = runner.invoke(
+            "scaffold", "project", "foo-bar", "--use-editable-dagster", "--verbose"
+        )
         assert_runner_result(result)
         assert Path("projects/foo-bar").exists()
         assert Path("projects/foo-bar/foo_bar").exists()
@@ -349,7 +351,7 @@ def test_scaffold_component_undefined_component_type_fails() -> None:
         assert "No component type `fake@fake` is registered" in result.output
 
 
-def test_scaffold_component_command_with_non_matching_package_name():
+def test_scaffold_component_command_with_non_matching_module_name():
     with ProxyRunner.test() as runner, isolated_example_project_foo_bar(runner):
         #  move the module from foo_bar to module_not_same_as_project
         python_module = Path("foo_bar")
@@ -393,7 +395,9 @@ def test_scaffold_component_succeeds_non_default_component_package() -> None:
         alt_lib_path = Path("foo_bar/_components")
         alt_lib_path.mkdir(parents=True)
         with modify_pyproject_toml() as toml:
-            set_toml_value(toml, ("tool", "dg", "component_package"), "foo_bar._components")
+            set_toml_value(
+                toml, ("tool", "dg", "project", "components_module"), "foo_bar._components"
+            )
         result = runner.invoke(
             "scaffold",
             "component",
@@ -413,7 +417,7 @@ def test_scaffold_component_succeeds_non_default_component_package() -> None:
 def test_scaffold_component_fails_components_package_does_not_exist() -> None:
     with ProxyRunner.test() as runner, isolated_example_project_foo_bar(runner):
         with modify_pyproject_toml() as toml:
-            set_toml_value(toml, ("tool", "dg", "component_package"), "bar._components")
+            set_toml_value(toml, ("tool", "dg", "project", "components_module"), "bar._components")
         result = runner.invoke(
             "scaffold",
             "component",
@@ -491,7 +495,7 @@ def test_scaffold_component_type_success() -> None:
         result = runner.invoke("scaffold", "component-type", "baz")
         assert_runner_result(result)
         assert Path("foo_bar/lib/baz.py").exists()
-        dg_context = DgContext.from_config_file_discovery_and_cli_config(Path.cwd(), {})
+        dg_context = DgContext.from_config_file_discovery_and_command_line_config(Path.cwd(), {})
         registry = RemoteComponentRegistry.from_dg_context(dg_context)
         assert registry.has_global(GlobalComponentKey(name="baz", namespace="foo_bar"))
 
@@ -511,7 +515,7 @@ def test_scaffold_component_type_already_exists_fails() -> None:
 def test_scaffold_component_type_succeeds_non_default_component_lib_package() -> None:
     with (
         ProxyRunner.test() as runner,
-        isolated_example_component_library_foo_bar(runner, lib_package_name="foo_bar._lib"),
+        isolated_example_component_library_foo_bar(runner, lib_module_name="foo_bar._lib"),
     ):
         result = runner.invoke(
             "scaffold",
@@ -520,7 +524,7 @@ def test_scaffold_component_type_succeeds_non_default_component_lib_package() ->
         )
         assert_runner_result(result)
         assert Path("foo_bar/_lib/baz.py").exists()
-        dg_context = DgContext.from_config_file_discovery_and_cli_config(Path.cwd(), {})
+        dg_context = DgContext.from_config_file_discovery_and_command_line_config(Path.cwd(), {})
         registry = RemoteComponentRegistry.from_dg_context(dg_context)
         assert registry.has_global(GlobalComponentKey(name="baz", namespace="foo_bar"))
 
@@ -528,7 +532,7 @@ def test_scaffold_component_type_succeeds_non_default_component_lib_package() ->
 def test_scaffold_component_type_fails_components_lib_package_does_not_exist(capfd) -> None:
     with (
         ProxyRunner.test() as runner,
-        isolated_example_component_library_foo_bar(runner, lib_package_name="foo_bar.fake"),
+        isolated_example_component_library_foo_bar(runner, lib_module_name="foo_bar.fake"),
     ):
         # Delete the entry point module
         shutil.rmtree("foo_bar/fake")
